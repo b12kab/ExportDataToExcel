@@ -32,6 +32,8 @@ namespace ExportDataToExcel.ViewModels
             Developers = new ObservableCollection<XFDeveloper>(XFDeveloperService.GetAllXamarinDevelopers());
         }
 
+        private static bool permissionDeniedOnce = false;
+        private bool exportData = false;
 
         /* Export the list to excel file at the location provide by DependencyService */
         public async System.Threading.Tasks.Task ExportDataToExcelAsync()
@@ -43,72 +45,99 @@ namespace ExportDataToExcel.ViewModels
             {
                 var results = await CrossPermissions.Current.RequestPermissionsAsync(new[] { Permission.Storage });
                 storageStatus = results[Permission.Storage];
-            }
-
-            if (Developers.Count() > 0)
-            {
-                try
+                if (!permissionDeniedOnce && storageStatus == PermissionStatus.Denied)
                 {
-                    string date = DateTime.Now.ToShortDateString();
-                    date = date.Replace("/", "_");
-
-                    var path = DependencyService.Get<IExportFilesToLocation>().GetFolderLocation() + "XFDevelopers" + date + ".xlsx";
-                    FilePath = path;
-                    using (SpreadsheetDocument document = SpreadsheetDocument.Create(path, SpreadsheetDocumentType.Workbook))
-                    {
-                        WorkbookPart workbookPart = document.AddWorkbookPart();
-                        workbookPart.Workbook = new Workbook();
-
-                        WorksheetPart worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
-                        worksheetPart.Worksheet = new Worksheet();
-
-                        Sheets sheets = workbookPart.Workbook.AppendChild(new Sheets());
-                        Sheet sheet = new Sheet() { Id = workbookPart.GetIdOfPart(worksheetPart), SheetId = 1, Name = "Xamarin Forms developers list" };
-                        sheets.Append(sheet);
-
-                        workbookPart.Workbook.Save();
-
-                        SheetData sheetData = worksheetPart.Worksheet.AppendChild(new SheetData());
-
-                        // Constructing header
-                        Row row = new Row();
-
-                        row.Append(
-                            ConstructCell("No", CellValues.String),
-                            ConstructCell("FullName", CellValues.String),
-                            ConstructCell("Phone", CellValues.String)
-                            );
-
-                        // Insert the header row to the Sheet Data
-                        sheetData.AppendChild(row);
-
-                        // Add each product
-                        foreach (var d in Developers)
-                        {
-                            row = new Row();
-                            row.Append(
-                                ConstructCell(d.ID.ToString(), CellValues.String),
-                                ConstructCell(d.FullName, CellValues.String),
-                                ConstructCell(d.Phone, CellValues.String));
-                            sheetData.AppendChild(row);
-                        }
-
-                        worksheetPart.Worksheet.Save();
-                        MessagingCenter.Send(this, "DataExportedSuccessfully");
-                    }
-
+                    permissionDeniedOnce = true;
                 }
-                catch (Exception e)
+
+                if (!permissionDeniedOnce && storageStatus == PermissionStatus.Granted)
                 {
-                    Debug.WriteLine("ERROR: "+ e.Message);
+                    exportData = true;
+                }
+
+                if (permissionDeniedOnce && storageStatus == PermissionStatus.Granted)
+                {
+                    exportData = true;
+                }
+
+                if (permissionDeniedOnce && storageStatus == PermissionStatus.Denied)
+                {
+                    MessagingCenter.Send(this, "DataExportedPermissionDenied");
                 }
             }
             else
             {
-                MessagingCenter.Send(this, "NoDataToExport");
+                exportData = true;
+            }
+
+            if (exportData)
+            {
+                if (Developers.Count() > 0)
+                {
+                    try
+                    {
+                        string date = DateTime.Now.ToShortDateString();
+                        date = date.Replace("/", "_");
+
+                        var path = DependencyService.Get<IExportFilesToLocation>().GetFolderLocation() + "XFDevelopers" + date + ".xlsx";
+                        FilePath = path;
+                        System.Diagnostics.Debug.WriteLine("Excel filespec: " + path);
+                        System.Diagnostics.Debug.Flush();
+
+                        using (SpreadsheetDocument document = SpreadsheetDocument.Create(path, SpreadsheetDocumentType.Workbook))
+                        {
+                            WorkbookPart workbookPart = document.AddWorkbookPart();
+                            workbookPart.Workbook = new Workbook();
+
+                            WorksheetPart worksheetPart = workbookPart.AddNewPart<WorksheetPart>();
+                            worksheetPart.Worksheet = new Worksheet();
+
+                            Sheets sheets = workbookPart.Workbook.AppendChild(new Sheets());
+                            Sheet sheet = new Sheet() { Id = workbookPart.GetIdOfPart(worksheetPart), SheetId = 1, Name = "Xamarin Forms developers list" };
+                            sheets.Append(sheet);
+
+                            workbookPart.Workbook.Save();
+
+                            SheetData sheetData = worksheetPart.Worksheet.AppendChild(new SheetData());
+
+                            // Constructing header
+                            Row row = new Row();
+
+                            row.Append(
+                                ConstructCell("No", CellValues.String),
+                                ConstructCell("FullName", CellValues.String),
+                                ConstructCell("Phone", CellValues.String)
+                                );
+
+                            // Insert the header row to the Sheet Data
+                            sheetData.AppendChild(row);
+
+                            // Add each product
+                            foreach (var d in Developers)
+                            {
+                                row = new Row();
+                                row.Append(
+                                    ConstructCell(d.ID.ToString(), CellValues.String),
+                                    ConstructCell(d.FullName, CellValues.String),
+                                    ConstructCell(d.Phone, CellValues.String));
+                                sheetData.AppendChild(row);
+                            }
+
+                            worksheetPart.Worksheet.Save();
+                            MessagingCenter.Send(this, "DataExportedSuccessfully");
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.WriteLine("ERROR: " + e.Message);
+                    }
+                }
+                else
+                {
+                    MessagingCenter.Send(this, "NoDataToExport");
+                }
             }
         }
-
 
         /* To create cell in Excel */
         private Cell ConstructCell(string value, CellValues dataType)
@@ -119,7 +148,6 @@ namespace ExportDataToExcel.ViewModels
                 DataType = new EnumValue<CellValues>(dataType)
             };
         }
-
 
         public ICommand ExportToExcelCommand { get; set; }
 
@@ -136,6 +164,5 @@ namespace ExportDataToExcel.ViewModels
             get { return _filePath; }
             set { SetProperty(ref _filePath, value); }
         }
-
     }   
 }

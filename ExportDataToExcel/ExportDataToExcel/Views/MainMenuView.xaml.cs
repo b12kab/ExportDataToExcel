@@ -8,33 +8,33 @@ namespace ExportDataToExcel.Views
     [XamlCompilation(XamlCompilationOptions.Compile)]
     public partial class MainMenuView : ContentPage
     {
-        private MainMenuViewModel viewModel;
         public MainMenuView()
         {
             InitializeComponent();
-            BindingContext = viewModel = new MainMenuViewModel();
+            BindingContext = new MainMenuViewModel();
             RegisterMesssages();
         }
 
 
         private void RegisterMesssages()
         {
-            MessagingCenter.Subscribe<MainMenuViewModel>(this, "DataExportedSuccessfully", (m) =>
+            MessagingCenter.Subscribe<MainMenuViewModel>(this, "DataExportedSuccessfully", (senderViewModel) =>
             {
-                if (m != null)
+                if (senderViewModel != null)
                 {
-                    DisplayAlert("Info", "Data exported Successfully. The location is :"+m.FilePath, "OK");
+                    DisplayAlert("Info", "Data exported Successfully. The location is :"+ senderViewModel.FilePath, "OK");
                 }
             });
 
-            MessagingCenter.Subscribe<MainMenuViewModel>(this, "NoDataToExport", (m) =>
+            MessagingCenter.Subscribe<MainMenuViewModel>(this, "DataExportedPermissionDenied", (senderViewModel) =>
             {
-                if (m != null)
-                {
-                    DisplayAlert("Warning !", "No data to export.", "OK");
-                }
+                DisplayAlert("Info", "You have denied the write permission", "OK");
+            });
+
+            MessagingCenter.Subscribe<MainMenuViewModel>(this, "NoDataToExport", (senderViewModel) =>
+            {
+                DisplayAlert("Warning !", "No data to export.", "OK");
             });
         }
-
     }
 }
